@@ -1,0 +1,49 @@
+name: Build Saadi Tafsir APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reconstruct v0.3 source
+        shell: bash
+        run: |
+          cat ci/source/chunk_*.b64 > saadi-v0.3.zip.b64
+          base64 --decode saadi-v0.3.zip.b64 > saadi-v0.3.zip
+          unzip -q saadi-v0.3.zip
+          test -f saadi-audio-tafsir/settings.gradle.kts
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        working-directory: saadi-audio-tafsir
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Saadi-Tafsir-v0.3-APK
+          path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30
