@@ -31,16 +31,35 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 platform
+        shell: bash
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
+      - name: Prepare project for CI
+        working-directory: saadi-audio-tafsir
+        shell: bash
+        run: |
+          printf 'android.useAndroidX=true\nandroid.nonTransitiveRClass=true\norg.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8\n' > gradle.properties
+          sed -i 's/androidx.room:room-runtime:2.6.1/androidx.room:room-runtime:2.7.2/' app/build.gradle.kts
+          sed -i 's/androidx.room:room-ktx:2.6.1/androidx.room:room-ktx:2.7.2/' app/build.gradle.kts
+          sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
+
       - name: Build debug APK
         working-directory: saadi-audio-tafsir
-        run: gradle --no-daemon assembleDebug
+        run: gradle --no-daemon assembleDebug --stacktrace --warning-mode all
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Saadi-Tafsir-v0.3-APK
