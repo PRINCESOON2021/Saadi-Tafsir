@@ -1,33 +1,24 @@
-name: Build Saadi Tafsir APK
+name: Android APK Build
 
 on:
   push:
-    branches: [ main ]
-    paths-ignore:
-      - 'ci/last_build.log'
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  build-apk:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Reconstruct v0.3 source
-        shell: bash
-        run: |
-          cat ci/source/chunk_*.b64 > saadi-v0.3.zip.b64
-          base64 --decode saadi-v0.3.zip.b64 > saadi-v0.3.zip
-          unzip -q saadi-v0.3.zip
-          test -f saadi-audio-tafsir/settings.gradle.kts
-
-      - name: Set up JDK 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -36,8 +27,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Install Android 35 platform
-        shell: bash
+      - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
@@ -47,55 +37,29 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Prepare project for CI
+      - name: Reconstruct project
+        run: |
+          cat ci/source/chunk_*.b64 > saadi-v0.3.zip.b64
+          base64 --decode saadi-v0.3.zip.b64 > saadi-v0.3.zip
+          unzip -q saadi-v0.3.zip
+          test -f saadi-audio-tafsir/settings.gradle.kts
+
+      - name: Prepare Android project
         working-directory: saadi-audio-tafsir
-        shell: bash
         run: |
           printf 'android.useAndroidX=true\nandroid.nonTransitiveRClass=true\norg.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8\n' > gradle.properties
           sed -i 's/androidx.room:room-runtime:2.6.1/androidx.room:room-runtime:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-ktx:2.6.1/androidx.room:room-ktx:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
-          python3 - <<'PY'
-          from pathlib import Path
-          p = Path('app/build.gradle.kts')
-          s = p.read_text()
-          marker = '    buildFeatures { compose = true }'
-          insert = '''    compileOptions {
-              sourceCompatibility = JavaVersion.VERSION_17
-              targetCompatibility = JavaVersion.VERSION_17
-          }
-
-          kotlinOptions {
-              jvmTarget = "17"
-          }
-
-'''
-          if insert not in s:
-              s = s.replace(marker, insert + marker)
-          p.write_text(s)
-          PY
+          sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
 
       - name: Build debug APK
-        id: build
         working-directory: saadi-audio-tafsir
-        shell: bash
         run: |
           set -o pipefail
-          gradle --no-daemon assembleDebug --stacktrace --warning-mode all 2>&1 | tee ../build.log
+          gradle --no-daemon assembleDebug --stacktrace 2>&1 | tee ../build.log
 
-      - name: Save failure log to repository
-        if: failure()
-        shell: bash
-        run: |
-          mkdir -p ci
-          cp build.log ci/last_build.log || echo 'Build failed before Gradle log was created.' > ci/last_build.log
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ci/last_build.log
-          git commit -m 'CI: save failed Android build log [skip ci]' || true
-          git push || true
-
-      - name: Upload APK
+      - name: Upload APK artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
@@ -103,3 +67,14 @@ jobs:
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+
+      - name: Save build failure log
+        if: failure()
+        run: |
+          mkdir -p ci
+          cp build.log ci/last_build.log || echo 'Build failed before Gradle log creation.' > ci/last_build.log
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ci/last_build.log
+          git commit -m 'CI: save Android build failure log [skip ci]' || true
+          git push || true
