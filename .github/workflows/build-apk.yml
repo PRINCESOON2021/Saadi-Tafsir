@@ -47,10 +47,27 @@ jobs:
           unzip -q saadi-v0.3.zip
           test -f saadi-audio-tafsir/settings.gradle.kts
 
-      - name: Apply Arabic audio patch
+      - name: Apply real Saadi Tafsir audio source
         run: |
-          cp ci/patch/TafsirTts.kt saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/TafsirTts.kt
-          python3 ci/patch/apply_audio_patch.py
+          cat > saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt <<'EOF'
+          package com.distritech.saaditafsir.player
+
+          /**
+           * Real Audio Tafsir Al-Saadi hosted by IslamHouse.
+           * One MP3 per surah (001..114).
+           */
+          object AudioUrlResolver {
+              fun tafsirUrl(surah: Int, ayah: Int): String? {
+                  if (surah !in 1..114) return null
+                  val n = surah.toString().padStart(3, '0')
+                  return "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad/ar_${n}_Tafceer_Saadi_Al-Ahmad.mp3"
+              }
+          }
+          EOF
+          sed -i 's/versionCode = 3/versionCode = 5/' saadi-audio-tafsir/app/build.gradle.kts
+          sed -i 's/versionName = "0.3.0"/versionName = "0.3.2"/' saadi-audio-tafsir/app/build.gradle.kts
+          grep -q 'd1.islamhouse.com' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
+          grep -q 'versionName = "0.3.2"' saadi-audio-tafsir/app/build.gradle.kts
 
       - name: Prepare Android project
         working-directory: saadi-audio-tafsir
@@ -61,17 +78,28 @@ jobs:
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
           sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
 
+      - name: Verify real audio code before build
+        run: |
+          grep -R "d1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad" saadi-audio-tafsir/app/src/main/java
+          grep -R "AudioClient.play" saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
+
       - name: Build debug APK
         working-directory: saadi-audio-tafsir
         run: |
           set -o pipefail
           gradle --no-daemon assembleDebug --stacktrace 2>&1 | tee ../build.log
 
+      - name: Verify APK exists
+        if: success()
+        run: |
+          test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
+
       - name: Upload APK artifact
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.3.1-APK
+          name: Saadi-Tafsir-v0.3.2-REAL-AUDIO-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
