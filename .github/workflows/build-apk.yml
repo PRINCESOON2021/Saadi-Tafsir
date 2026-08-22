@@ -47,6 +47,11 @@ jobs:
           unzip -q saadi-v0.3.zip
           test -f saadi-audio-tafsir/settings.gradle.kts
 
+      - name: Apply Arabic audio patch
+        run: |
+          cp ci/patch/TafsirTts.kt saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/TafsirTts.kt
+          python3 ci/patch/apply_audio_patch.py
+
       - name: Prepare Android project
         working-directory: saadi-audio-tafsir
         run: |
@@ -66,7 +71,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.3-APK
+          name: Saadi-Tafsir-v0.3.1-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
