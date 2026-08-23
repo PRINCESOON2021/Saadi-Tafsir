@@ -87,12 +87,21 @@ jobs:
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
+      - name: Record successful run id
+        if: success()
+        run: |
+          echo "$GITHUB_RUN_ID" > ci/last_success_run.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add ci/last_success_run.txt
+          git commit -m 'CI: record v0.4.0 success run [skip ci]' || true
+          git push || true
       - name: Save build failure log
         if: failure()
         run: |
           cp build.log ci/last_build.log || echo 'Failure before Gradle; inspect v0.4.0 acceptance tests.' > ci/last_build.log
           git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git config user.email '4189820+github-actions[bot]@users.noreply.github.com'
           git add ci/last_build.log
           git commit -m 'CI: save v0.4.0 failure [skip ci]' || true
           git push || true
