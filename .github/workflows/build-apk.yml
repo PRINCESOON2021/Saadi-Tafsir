@@ -1,4 +1,4 @@
-name: Android APK Build
+name: Android APK Build v0.3.4
 'on':
   push:
     branches: [main]
@@ -26,11 +26,11 @@ jobs:
           base64 --decode saadi-base.zip.b64 > saadi-base.zip
           unzip -q saadi-base.zip
           test -f saadi-audio-tafsir/settings.gradle.kts
-      - name: Apply v0.3.3 upgrade
+      - name: Apply audio and security upgrade
         run: python3 ci/patch/v033_upgrade.py
-      - name: Apply Islamic icons
+      - name: Apply Islamic icons and UI styling
         run: python3 ci/patch/v033_icons.py
-      - name: Import Quran and Tafsir
+      - name: Import complete Quran and Tafsir
         run: |
           git clone --depth 1 --filter=blob:none --sparse https://github.com/meibassam/mosahaf-tafseer.git /tmp/mosahaf-tafseer
           cd /tmp/mosahaf-tafseer && git sparse-checkout set json-data && cd "$GITHUB_WORKSPACE"
@@ -45,40 +45,43 @@ jobs:
           sed -i 's/androidx.room:room-ktx:2.6.1/androidx.room:room-ktx:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
           sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
-      - name: Diagnostic v0.3.3 files
+      - name: Validate audio icons security and content
         run: |
-          echo '--- AUDIO ---'
-          ls -l saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/ || true
-          cat saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt || true
-          echo '--- MANIFEST ---'
-          grep -E 'allowBackup|usesCleartextTraffic|icon|roundIcon' saadi-audio-tafsir/app/src/main/AndroidManifest.xml || true
-          echo '--- ICONS ---'
-          ls -l saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml saadi-audio-tafsir/app/src/main/res/drawable/ic_islamic_ornament.xml || true
-          echo '--- VERSION ---'
-          grep -E 'versionCode|versionName' saadi-audio-tafsir/app/build.gradle.kts || true
-      - name: Verify required v0.3.3 files
-        run: |
-          test -s saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt || { echo 'FAIL AudioUrlResolver'; exit 11; }
-          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml || { echo 'FAIL launcher icon'; exit 12; }
-          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_islamic_ornament.xml || { echo 'FAIL ornament'; exit 13; }
+          test -s saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt || { echo 'FAIL AUDIO RESOLVER'; exit 11; }
+          test -s saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioClient.kt || { echo 'FAIL AUDIO CLIENT'; exit 12; }
+          grep -q 'https://' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt || { echo 'FAIL HTTPS AUDIO'; exit 13; }
+          grep -q 'fun toggle' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioClient.kt || { echo 'FAIL PLAY PAUSE'; exit 14; }
+          grep -q 'fun seekBy' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioClient.kt || { echo 'FAIL SEEK CONTROLS'; exit 15; }
+          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml || { echo 'FAIL LAUNCHER ICON'; exit 16; }
+          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_islamic_ornament.xml || { echo 'FAIL ISLAMIC ORNAMENT'; exit 17; }
+          grep -q 'android:icon="@drawable/ic_launcher_saadi"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml || { echo 'FAIL ICON MANIFEST'; exit 18; }
+          grep -q 'usesCleartextTraffic="false"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml || { echo 'FAIL NETWORK SECURITY'; exit 19; }
+          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114 || { echo 'FAIL COMPLETE TAFSIR'; exit 20; }
+          grep -q 'Color(0xFFF4C86A)' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt || { echo 'FAIL GOLD UI'; exit 21; }
+          grep -q 'Color(0xFF1B5A49)' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt || { echo 'FAIL EMERALD UI'; exit 22; }
+          echo 'STATIC VALIDATION PASSED: audio controls + icons + security + 114 surahs + UI palette'
       - name: Build debug APK
         working-directory: saadi-audio-tafsir
         run: |
           set -o pipefail
           gradle --no-daemon assembleDebug --stacktrace 2>&1 | tee ../build.log
+      - name: Verify APK
+        run: |
+          test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
+          ls -lh saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.3.3-FINAL-ISLAMIC-ICONS-APK
+          name: Saadi-Tafsir-v0.3.4-AUDIO-ICONS-UI-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
       - name: Save build failure log
         if: failure()
         run: |
-          cp build.log ci/last_build.log || echo 'Build failed before Gradle. See workflow diagnostics.' > ci/last_build.log
+          cp build.log ci/last_build.log || echo 'Build failed before Gradle; inspect named validation step.' > ci/last_build.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci/last_build.log
-          git commit -m 'CI: save Android failure [skip ci]' || true
+          git commit -m 'CI: save v0.3.4 failure [skip ci]' || true
           git push || true
