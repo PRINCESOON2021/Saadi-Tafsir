@@ -1,4 +1,4 @@
-name: Android APK Build v0.4.0 ARABIC TEXT SEARCH
+name: Build APK Saadi Tafsir
 'on':
   push:
     branches: [main]
@@ -101,7 +101,7 @@ jobs:
         run: |
           cp build.log ci/last_build.log || echo 'Failure before Gradle; inspect v0.4.0 acceptance tests.' > ci/last_build.log
           git config user.name 'github-actions[bot]'
-          git config user.email '4189820+github-actions[bot]@users.noreply.github.com'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci/last_build.log
           git commit -m 'CI: save v0.4.0 failure [skip ci]' || true
           git push || true
