@@ -2,8 +2,7 @@ name: Android APK Build
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
     paths-ignore:
       - 'ci/last_build.log'
       - 'ci/last_success_run.txt'
@@ -40,48 +39,45 @@ jobs:
         with:
           gradle-version: '8.9'
 
-      - name: Reconstruct project
+      - name: Reconstruct base project
         run: |
-          cat ci/source/chunk_*.b64 > saadi-v0.3.zip.b64
-          base64 --decode saadi-v0.3.zip.b64 > saadi-v0.3.zip
-          unzip -q saadi-v0.3.zip
+          cat ci/source/chunk_*.b64 > saadi-base.zip.b64
+          base64 --decode saadi-base.zip.b64 > saadi-base.zip
+          unzip -q saadi-base.zip
           test -f saadi-audio-tafsir/settings.gradle.kts
 
-      - name: Apply real Saadi Tafsir audio source
-        run: |
-          cat > saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt <<'EOF'
-          package com.distritech.saaditafsir.player
+      - name: Apply v0.3.3 upgrade
+        run: python3 ci/patch/v033_upgrade.py
 
-          /**
-           * Real Audio Tafsir Al-Saadi hosted by IslamHouse.
-           * One MP3 per surah (001..114).
-           */
-          object AudioUrlResolver {
-              fun tafsirUrl(surah: Int, ayah: Int): String? {
-                  if (surah !in 1..114) return null
-                  val n = surah.toString().padStart(3, '0')
-                  return "https://d1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad/ar_${n}_Tafceer_Saadi_Al-Ahmad.mp3"
-              }
-          }
-          EOF
-          sed -i 's/versionCode = 3/versionCode = 5/' saadi-audio-tafsir/app/build.gradle.kts
-          sed -i 's/versionName = "0.3.0"/versionName = "0.3.2"/' saadi-audio-tafsir/app/build.gradle.kts
-          grep -q 'd1.islamhouse.com' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
-          grep -q 'versionName = "0.3.2"' saadi-audio-tafsir/app/build.gradle.kts
+      - name: Import complete Quran and Tafsir Al-Saadi
+        run: |
+          rm -rf /tmp/mosahaf-tafseer
+          git clone --depth 1 --filter=blob:none --sparse https://github.com/meibassam/mosahaf-tafseer.git /tmp/mosahaf-tafseer
+          cd /tmp/mosahaf-tafseer
+          git sparse-checkout set json-data
+          cd "$GITHUB_WORKSPACE"
+          rm -rf saadi-audio-tafsir/app/src/main/assets/tafsir
+          python3 ci/patch/import_full_saadi.py /tmp/mosahaf-tafseer/json-data saadi-audio-tafsir/app/src/main/assets/tafsir
+          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114
+          rm -rf /tmp/mosahaf-tafseer
 
       - name: Prepare Android project
         working-directory: saadi-audio-tafsir
         run: |
-          printf 'android.useAndroidX=true\nandroid.nonTransitiveRClass=true\norg.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8\n' > gradle.properties
+          printf 'android.useAndroidX=true\nandroid.nonTransitiveRClass=true\norg.gradle.jvmargs=-Xmx4g -Dfile.encoding=UTF-8\n' > gradle.properties
           sed -i 's/androidx.room:room-runtime:2.6.1/androidx.room:room-runtime:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-ktx:2.6.1/androidx.room:room-ktx:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
           sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
 
-      - name: Verify real audio code before build
+      - name: Verify v0.3.3 content and security
         run: |
-          grep -R "d1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad" saadi-audio-tafsir/app/src/main/java
-          grep -R "AudioClient.play" saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
+          grep -q 'download.media.islamway.net' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
+          grep -q 'FilledIconButton' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
+          grep -q 'usesCleartextTraffic="false"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
+          grep -q 'allowBackup="false"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
+          grep -q 'versionName = "0.3.3"' saadi-audio-tafsir/app/build.gradle.kts
+          ! grep -R -q 'd1.islamhouse.com' saadi-audio-tafsir/app/src/main/java
 
       - name: Build debug APK
         working-directory: saadi-audio-tafsir
@@ -89,7 +85,7 @@ jobs:
           set -o pipefail
           gradle --no-daemon assembleDebug --stacktrace 2>&1 | tee ../build.log
 
-      - name: Verify APK exists
+      - name: Verify APK
         if: success()
         run: |
           test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
@@ -99,7 +95,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.3.2-REAL-AUDIO-APK
+          name: Saadi-Tafsir-v0.3.3-FULL-PLAYER-SECURE-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
@@ -107,7 +103,6 @@ jobs:
       - name: Record successful run id
         if: success()
         run: |
-          mkdir -p ci
           echo "${GITHUB_RUN_ID}" > ci/last_success_run.txt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -118,7 +113,6 @@ jobs:
       - name: Save build failure log
         if: failure()
         run: |
-          mkdir -p ci
           cp build.log ci/last_build.log || echo 'Build failed before Gradle log creation.' > ci/last_build.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
