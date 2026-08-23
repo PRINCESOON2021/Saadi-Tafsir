@@ -41,7 +41,7 @@ import java.text.Normalizer
 data class AyahRef(val surah: Int, val ayah: Int)
 
 object AyahSearch {
-    private val direct = Regex("^\\s*(\\d{1,3})\\s*[:/\\-]\\s*(\\d{1,3})\\s*$")
+    private val direct = Regex("""^\s*(\d{1,3})\s*[:/-]\s*(\d{1,3})\s*$""")
     private val arabicDigits = mapOf('٠' to '0','١' to '1','٢' to '2','٣' to '3','٤' to '4','٥' to '5','٦' to '6','٧' to '7','٨' to '8','٩' to '9')
 
     fun parseDirectRef(query: String): AyahRef? {
@@ -56,9 +56,9 @@ object AyahSearch {
     fun normalizeArabic(value: String): String {
         var s = value.map { arabicDigits[it] ?: it }.joinToString("")
         s = Normalizer.normalize(s, Normalizer.Form.NFD)
-        s = s.replace(Regex("[\\u064B-\\u065F\\u0670\\u06D6-\\u06ED]"), "")
+        s = s.replace(Regex("""[\u064B-\u065F\u0670\u06D6-\u06ED]"""), "")
         s = s.replace('أ','ا').replace('إ','ا').replace('آ','ا').replace('ى','ي').replace('ؤ','و').replace('ئ','ي').replace('ة','ه')
-        s = s.replace(Regex("[^\\p{L}\\p{N}]+"), " ").trim().replace(Regex("\\s+"), " ")
+        s = s.replace(Regex("""[^\p{L}\p{N}]+"""), " ").trim().replace(Regex("""\s+"""), " ")
         return s.lowercase()
     }
 
@@ -78,7 +78,6 @@ object AyahSearch {
     <path android:fillColor="#FFF8E7" android:fillAlpha="0.12" android:pathData="M90,110L135,155L90,200L45,155ZM270,110L315,155L270,200L225,155Z"/>
 </vector>''', encoding='utf-8')
 
-# Add stable visual identity constants without altering the proven audio code.
 s = ui.read_text(encoding='utf-8')
 if 'private const val SAADI_V038_DESIGN' not in s:
     anchor = s.find('\n@Composable')
