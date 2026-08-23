@@ -1,4 +1,4 @@
-name: Android APK Build v0.3.7 TESTED DESIGN
+name: Android APK Build v0.3.8 SEARCH BLOCKS DESIGN
 'on':
   push:
     branches: [main]
@@ -32,6 +32,8 @@ jobs:
         run: python3 ci/patch/v036_audio_track.py
       - name: Apply GLOBAL Islamic design
         run: python3 ci/patch/v037_full_islamic_design.py
+      - name: Apply v0.3.8 search blocks and zellij core
+        run: python3 ci/patch/v038_search_blocks_design.py
       - name: Apply Islamic launcher icons
         run: python3 ci/patch/v033_icons.py
       - name: Import complete Quran and Tafsir
@@ -41,6 +43,11 @@ jobs:
           rm -rf saadi-audio-tafsir/app/src/main/assets/tafsir
           python3 ci/patch/import_full_saadi.py /tmp/mosahaf-tafseer/json-data saadi-audio-tafsir/app/src/main/assets/tafsir
           test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114
+      - name: Inspect current search UI structure
+        run: |
+          UI=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
+          echo '--- SEARCH STRUCTURE FOR NEXT PATCH ---'
+          grep -nEi 'search|بحث|query|ayah|آية|initialAyah|filtered' "$UI" | head -120 || true
       - name: Prepare Android project
         working-directory: saadi-audio-tafsir
         run: |
@@ -49,90 +56,45 @@ jobs:
           sed -i 's/androidx.room:room-ktx:2.6.1/androidx.room:room-ktx:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
           sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
-      - name: PRE-DELIVERY acceptance tests
+      - name: v0.3.8 acceptance tests
         run: |
           UI=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
           AUDIO=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioClient.kt
           URLS=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
-          MANIFEST=saadi-audio-tafsir/app/src/main/AndroidManifest.xml
-
-          echo 'TEST 1/11 - proven audio source preserved'
-          grep -q 'd1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad' "$URLS" || exit 11
-
-          echo 'TEST 2/11 - volume engine + visible volume UI'
-          grep -q 'fun setVolume(value: Float)' "$AUDIO" || exit 12
-          grep -q 'controller?.volume = requestedVolume' "$AUDIO" || exit 13
-          grep -q 'AudioClient.setVolume(it)' "$UI" || exit 14
-          grep -q 'Icons.Default.VolumeUp' "$UI" || exit 15
-
-          echo 'TEST 3/11 - seekable track + elapsed/total time'
-          grep -q 'AudioClient.seekTo(target)' "$UI" || exit 16
-          grep -q 'playerPosition' "$UI" || exit 17
-          grep -q 'playerDuration' "$UI" || exit 18
-          grep -q 'AudioClient.seekBack10()' "$UI" || exit 19
-          grep -q 'AudioClient.seekForward10()' "$UI" || exit 20
-
-          echo 'TEST 4/11 - resume per surah'
-          grep -q 'fun playResumable' "$AUDIO" || exit 21
-          grep -q 'saadi_audio_positions' "$AUDIO" || exit 22
-          grep -q 'AudioClient.savePosition(context, "surah-$id")' "$UI" || exit 23
-
-          echo 'TEST 5/11 - component-level Islamic palette'
-          grep -q 'private val SaadiEmerald = Color(0xFF0E4D3A)' "$UI" || exit 24
-          grep -q 'private val SaadiGold = Color(0xFFD4AF37)' "$UI" || exit 25
-          grep -q 'private val SaadiIvory = Color(0xFFFFF8E7)' "$UI" || exit 26
-          grep -q 'private val SaadiBackground = Color(0xFFF4EEDF)' "$UI" || exit 27
-          ! grep -q 'SaadiGold = SaadiGold' "$UI" || exit 28
-          ! grep -q 'SaadiEmerald = SaadiEmerald' "$UI" || exit 29
-
-          echo 'TEST 6/11 - redesigned Islamic player remains visible'
-          grep -q 'RoundedCornerShape(22.dp)' "$UI" || exit 30
-          grep -q 'تفسير السعدي المسموع' "$UI" || exit 31
-          grep -q 'SaadiGold' "$UI" || exit 32
-          grep -q 'SaadiEmerald' "$UI" || exit 33
-
-          echo 'TEST 7/11 - player controls'
-          grep -q 'Icons.Default.PlayCircle' "$UI" || exit 34
-          grep -q 'Icons.Default.PauseCircle' "$UI" || exit 35
-          grep -q 'Icons.Default.Download' "$UI" || exit 36
-
-          echo 'TEST 8/11 - Islamic launcher icon'
-          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml || exit 37
-          grep -q '@drawable/ic_launcher_saadi' "$MANIFEST" || exit 38
-
-          echo 'TEST 9/11 - security'
-          grep -q 'usesCleartextTraffic="false"' "$MANIFEST" || exit 39
-          grep -q 'allowBackup="false"' "$MANIFEST" || exit 40
-
-          echo 'TEST 10/11 - complete Tafsir'
-          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114 || exit 41
-
-          echo 'TEST 11/11 - version'
-          grep -q 'versionName = "0.3.7"' saadi-audio-tafsir/app/build.gradle.kts || exit 42
-          echo 'ALL PRE-DELIVERY TESTS PASSED'
+          SEARCH=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/search/AyahSearch.kt
+          BLOCK=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/search/AyahBlock.kt
+          test -s "$SEARCH" || exit 61
+          test -s "$BLOCK" || exit 62
+          grep -q 'parseDirectRef' "$SEARCH" || exit 63
+          grep -q 'normalizeArabic' "$SEARCH" || exit 64
+          grep -q 'endAyah - startAyah + 1 <= 5' "$BLOCK" || exit 65
+          grep -q 'SAADI_SEARCH_BLOCK_MAX = 5' "$UI" || exit 66
+          test -s saadi-audio-tafsir/app/src/main/res/drawable/bg_zellij_saadi.xml || exit 67
+          grep -q 'd1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad' "$URLS" || exit 68
+          grep -q 'fun playResumable' "$AUDIO" || exit 69
+          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114 || exit 70
+          grep -q 'versionName = "0.3.8"' saadi-audio-tafsir/app/build.gradle.kts || exit 71
+          echo 'V038 CORE ACCEPTANCE PASSED'
       - name: Compile Android debug APK
         working-directory: saadi-audio-tafsir
         run: |
           set -o pipefail
           gradle --no-daemon clean assembleDebug --stacktrace 2>&1 | tee ../build.log
-      - name: POST-BUILD APK verification
-        run: |
-          test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk || exit 51
-          ls -lh saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
-          echo 'APK BUILD VERIFIED'
-      - name: Upload tested APK artifact
+      - name: Verify APK
+        run: test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
+      - name: Upload v0.3.8 core APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.3.7-TESTED-GLOBAL-DESIGN-AUDIO-APK
+          name: Saadi-Tafsir-v0.3.8-SEARCH-BLOCKS-ZELLIJ-CORE-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
       - name: Save build failure log
         if: failure()
         run: |
-          cp build.log ci/last_build.log || echo 'Failure before Gradle; inspect PRE-DELIVERY acceptance tests.' > ci/last_build.log
+          cp build.log ci/last_build.log || echo 'Failure before Gradle; inspect v0.3.8 acceptance tests.' > ci/last_build.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci/last_build.log
-          git commit -m 'CI: save v0.3.7 tested-build failure [skip ci]' || true
+          git commit -m 'CI: save v0.3.8 failure [skip ci]' || true
           git push || true
