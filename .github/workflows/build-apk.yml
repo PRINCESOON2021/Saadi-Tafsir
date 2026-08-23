@@ -1,4 +1,4 @@
-name: Android APK Build v0.3.9 AYAH SEARCH
+name: Android APK Build v0.4.0 ARABIC TEXT SEARCH
 'on':
   push:
     branches: [main]
@@ -34,7 +34,7 @@ jobs:
         run: python3 ci/patch/v037_full_islamic_design.py
       - name: Apply v0.3.8 search core
         run: python3 ci/patch/v038_search_blocks_design.py
-      - name: Wire exact ayah search
+      - name: Wire exact ayah reference search
         run: python3 ci/patch/v039_wire_ayah_search.py
       - name: Apply Islamic launcher icons
         run: python3 ci/patch/v033_icons.py
@@ -45,6 +45,8 @@ jobs:
           rm -rf saadi-audio-tafsir/app/src/main/assets/tafsir
           python3 ci/patch/import_full_saadi.py /tmp/mosahaf-tafseer/json-data saadi-audio-tafsir/app/src/main/assets/tafsir
           test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114
+      - name: Add Arabic word and phrase ayah search list
+        run: python3 ci/patch/v040_text_search_results.py
       - name: Prepare Android project
         working-directory: saadi-audio-tafsir
         run: |
@@ -53,19 +55,24 @@ jobs:
           sed -i 's/androidx.room:room-ktx:2.6.1/androidx.room:room-ktx:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
           sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
-      - name: v0.3.9 acceptance tests
+      - name: v0.4.0 acceptance tests
         run: |
           UI=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
+          INDEX=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/search/AyahTextIndex.kt
           SEARCH=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/search/AyahSearch.kt
           URLS=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
-          grep -q 'AyahSearch.parseDirectRef(query)' "$UI" || exit 81
-          grep -q 'directAyahRef?.takeIf' "$UI" || exit 82
-          grep -q 'ابحث عن سورة أو آية مثل 2:255' "$UI" || exit 83
-          grep -q 'parseDirectRef' "$SEARCH" || exit 84
-          grep -q 'd1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad' "$URLS" || exit 85
-          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114 || exit 86
-          grep -q 'versionName = "0.3.9"' saadi-audio-tafsir/app/build.gradle.kts || exit 87
-          echo 'V039 AYAH SEARCH ACCEPTANCE PASSED'
+          grep -q 'AyahSearch.parseDirectRef(query)' "$UI" || exit 91
+          grep -q 'AyahTextIndex.search(query.trim(), 50)' "$UI" || exit 92
+          grep -q 'نتائج الآيات' "$UI" || exit 93
+          grep -q 'onOpenSurah(hit.surah, hit.ayah)' "$UI" || exit 94
+          grep -q 'كلمة أو عبارة من الآية' "$UI" || exit 95
+          test -s "$INDEX" || exit 96
+          grep -q 'fun search(query: String, limit: Int = 50)' "$INDEX" || exit 97
+          grep -q 'normalizeArabic' "$SEARCH" || exit 98
+          grep -q 'd1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad' "$URLS" || exit 99
+          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114 || exit 100
+          grep -q 'versionName = "0.4.0"' saadi-audio-tafsir/app/build.gradle.kts || exit 101
+          echo 'V040 ARABIC TEXT SEARCH ACCEPTANCE PASSED'
       - name: Compile Android debug APK
         working-directory: saadi-audio-tafsir
         run: |
@@ -73,19 +80,19 @@ jobs:
           gradle --no-daemon clean assembleDebug --stacktrace 2>&1 | tee ../build.log
       - name: Verify APK
         run: test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
-      - name: Upload v0.3.9 APK artifact
+      - name: Upload v0.4.0 APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.3.9-AYAH-SEARCH-APK
+          name: Saadi-Tafsir-v0.4.0-ARABIC-TEXT-SEARCH-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
       - name: Save build failure log
         if: failure()
         run: |
-          cp build.log ci/last_build.log || echo 'Failure before Gradle; inspect v0.3.9 acceptance tests.' > ci/last_build.log
+          cp build.log ci/last_build.log || echo 'Failure before Gradle; inspect v0.4.0 acceptance tests.' > ci/last_build.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci/last_build.log
-          git commit -m 'CI: save v0.3.9 failure [skip ci]' || true
+          git commit -m 'CI: save v0.4.0 failure [skip ci]' || true
           git push || true
