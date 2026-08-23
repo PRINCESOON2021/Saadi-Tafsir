@@ -1,4 +1,4 @@
-name: Android APK Build v0.3.6 TESTED
+name: Android APK Build v0.3.7 TESTED DESIGN
 'on':
   push:
     branches: [main]
@@ -26,10 +26,12 @@ jobs:
           base64 --decode saadi-base.zip.b64 > saadi-base.zip
           unzip -q saadi-base.zip
           test -f saadi-audio-tafsir/settings.gradle.kts
-      - name: Apply working audio design and volume
+      - name: Apply known working audio + player + volume
         run: python3 ci/patch/v034_restore_v1_audio_ui.py
-      - name: Apply seekable resumable track controls
+      - name: Apply seek/resume track controls
         run: python3 ci/patch/v036_audio_track.py
+      - name: Apply GLOBAL Islamic design
+        run: python3 ci/patch/v037_full_islamic_design.py
       - name: Apply Islamic launcher icons
         run: python3 ci/patch/v033_icons.py
       - name: Import complete Quran and Tafsir
@@ -54,54 +56,60 @@ jobs:
           URLS=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
           MANIFEST=saadi-audio-tafsir/app/src/main/AndroidManifest.xml
 
-          echo 'TEST 1/10 - known working IslamHouse MP3 source'
-          grep -q 'd1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad' "$URLS" || { echo 'FAIL AUDIO SOURCE'; exit 11; }
+          echo 'TEST 1/11 - proven audio source preserved'
+          grep -q 'd1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad' "$URLS" || exit 11
 
-          echo 'TEST 2/10 - real Media3 volume engine'
-          grep -q 'fun setVolume(value: Float)' "$AUDIO" || { echo 'FAIL VOLUME ENGINE'; exit 12; }
-          grep -q 'controller?.volume = requestedVolume' "$AUDIO" || { echo 'FAIL VOLUME APPLICATION'; exit 13; }
-          grep -q 'AudioClient.setVolume(it)' "$UI" || { echo 'FAIL VOLUME UI'; exit 14; }
-          grep -q 'Icons.Default.VolumeUp' "$UI" || { echo 'FAIL VOLUME ICON'; exit 15; }
+          echo 'TEST 2/11 - volume engine + visible volume UI'
+          grep -q 'fun setVolume(value: Float)' "$AUDIO" || exit 12
+          grep -q 'controller?.volume = requestedVolume' "$AUDIO" || exit 13
+          grep -q 'AudioClient.setVolume(it)' "$UI" || exit 14
+          grep -q 'Icons.Default.VolumeUp' "$UI" || exit 15
 
-          echo 'TEST 3/10 - seekable audio track'
-          grep -q 'AudioClient.seekTo(target)' "$UI" || { echo 'FAIL SEEK BAR'; exit 16; }
-          grep -q 'playerPosition' "$UI" || { echo 'FAIL ELAPSED TIME'; exit 17; }
-          grep -q 'playerDuration' "$UI" || { echo 'FAIL TOTAL TIME'; exit 18; }
-          grep -q 'AudioClient.seekBack10()' "$UI" || { echo 'FAIL BACK10'; exit 19; }
-          grep -q 'AudioClient.seekForward10()' "$UI" || { echo 'FAIL FORWARD10'; exit 20; }
+          echo 'TEST 3/11 - seekable track + elapsed/total time'
+          grep -q 'AudioClient.seekTo(target)' "$UI" || exit 16
+          grep -q 'playerPosition' "$UI" || exit 17
+          grep -q 'playerDuration' "$UI" || exit 18
+          grep -q 'AudioClient.seekBack10()' "$UI" || exit 19
+          grep -q 'AudioClient.seekForward10()' "$UI" || exit 20
 
-          echo 'TEST 4/10 - resume per surah'
-          grep -q 'fun playResumable' "$AUDIO" || { echo 'FAIL RESUME ENGINE'; exit 21; }
-          grep -q 'saadi_audio_positions' "$AUDIO" || { echo 'FAIL POSITION STORAGE'; exit 22; }
-          grep -q 'AudioClient.savePosition(context, "surah-$id")' "$UI" || { echo 'FAIL AUTO SAVE'; exit 23; }
+          echo 'TEST 4/11 - resume per surah'
+          grep -q 'fun playResumable' "$AUDIO" || exit 21
+          grep -q 'saadi_audio_positions' "$AUDIO" || exit 22
+          grep -q 'AudioClient.savePosition(context, "surah-$id")' "$UI" || exit 23
 
-          echo 'TEST 5/10 - visible Islamic design, not old layout'
-          grep -q 'RoundedCornerShape(22.dp)' "$UI" || { echo 'FAIL ROUNDED PLAYER DESIGN'; exit 24; }
-          grep -q 'Color(0xFFFFF8E7)' "$UI" || { echo 'FAIL IVORY BACKGROUND'; exit 25; }
-          grep -q 'Color(0xFFD4AF37)' "$UI" || { echo 'FAIL GOLD ACCENT'; exit 26; }
-          grep -q 'Color(0xFF0E4D3A)' "$UI" || { echo 'FAIL EMERALD ACCENT'; exit 27; }
-          grep -q 'تفسير السعدي المسموع' "$UI" || { echo 'FAIL NEW PLAYER HEADER'; exit 28; }
+          echo 'TEST 5/11 - GLOBAL Islamic palette'
+          grep -q 'SaadiLightColors = lightColorScheme' "$UI" || exit 24
+          grep -q 'primary = SaadiEmerald' "$UI" || exit 25
+          grep -q 'secondary = SaadiGold' "$UI" || exit 26
+          grep -q 'background = SaadiBackground' "$UI" || exit 27
+          grep -q 'surface = SaadiIvory' "$UI" || exit 28
+          grep -q 'MaterialTheme(colorScheme = SaadiLightColors)' "$UI" || exit 29
 
-          echo 'TEST 6/10 - player controls visible'
-          grep -q 'Icons.Default.PlayCircle' "$UI" || { echo 'FAIL PLAY ICON'; exit 29; }
-          grep -q 'Icons.Default.PauseCircle' "$UI" || { echo 'FAIL PAUSE ICON'; exit 30; }
-          grep -q 'Icons.Default.Download' "$UI" || { echo 'FAIL DOWNLOAD ICON'; exit 31; }
+          echo 'TEST 6/11 - redesigned Islamic player remains visible'
+          grep -q 'RoundedCornerShape(22.dp)' "$UI" || exit 30
+          grep -q 'تفسير السعدي المسموع' "$UI" || exit 31
+          grep -q 'SaadiGold' "$UI" || exit 32
+          grep -q 'SaadiEmerald' "$UI" || exit 33
 
-          echo 'TEST 7/10 - Islamic application icon'
-          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml || { echo 'FAIL APP ICON'; exit 32; }
-          grep -q '@drawable/ic_launcher_saadi' "$MANIFEST" || { echo 'FAIL ICON MANIFEST'; exit 33; }
+          echo 'TEST 7/11 - player controls'
+          grep -q 'Icons.Default.PlayCircle' "$UI" || exit 34
+          grep -q 'Icons.Default.PauseCircle' "$UI" || exit 35
+          grep -q 'Icons.Default.Download' "$UI" || exit 36
 
-          echo 'TEST 8/10 - network security'
-          grep -q 'usesCleartextTraffic="false"' "$MANIFEST" || { echo 'FAIL CLEARTEXT SECURITY'; exit 34; }
-          grep -q 'allowBackup="false"' "$MANIFEST" || { echo 'FAIL BACKUP SECURITY'; exit 35; }
+          echo 'TEST 8/11 - Islamic launcher icon'
+          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml || exit 37
+          grep -q '@drawable/ic_launcher_saadi' "$MANIFEST" || exit 38
 
-          echo 'TEST 9/10 - complete Tafsir content'
-          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114 || { echo 'FAIL 114 SURAHS'; exit 36; }
+          echo 'TEST 9/11 - security'
+          grep -q 'usesCleartextTraffic="false"' "$MANIFEST" || exit 39
+          grep -q 'allowBackup="false"' "$MANIFEST" || exit 40
 
-          echo 'TEST 10/10 - expected version'
-          grep -q 'versionName = "0.3.6"' saadi-audio-tafsir/app/build.gradle.kts || { echo 'FAIL VERSION'; exit 37; }
+          echo 'TEST 10/11 - complete Tafsir'
+          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114 || exit 41
 
-          echo 'ALL PRE-DELIVERY STATIC TESTS PASSED'
+          echo 'TEST 11/11 - version'
+          grep -q 'versionName = "0.3.7"' saadi-audio-tafsir/app/build.gradle.kts || exit 42
+          echo 'ALL PRE-DELIVERY TESTS PASSED'
       - name: Compile Android debug APK
         working-directory: saadi-audio-tafsir
         run: |
@@ -109,13 +117,13 @@ jobs:
           gradle --no-daemon clean assembleDebug --stacktrace 2>&1 | tee ../build.log
       - name: POST-BUILD APK verification
         run: |
-          test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk || { echo 'FAIL APK MISSING'; exit 41; }
+          test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk || exit 51
           ls -lh saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           echo 'APK BUILD VERIFIED'
       - name: Upload tested APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.3.6-TESTED-AUDIO-DESIGN-VOLUME-APK
+          name: Saadi-Tafsir-v0.3.7-TESTED-GLOBAL-DESIGN-AUDIO-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
@@ -126,5 +134,5 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci/last_build.log
-          git commit -m 'CI: save tested-build failure [skip ci]' || true
+          git commit -m 'CI: save v0.3.7 tested-build failure [skip ci]' || true
           git push || true
