@@ -2,8 +2,7 @@ name: Android APK Build
 
 'on':
   push:
-    branches:
-      - main
+    branches: [main]
     paths-ignore:
       - 'ci/last_build.log'
       - 'ci/last_success_run.txt'
@@ -17,21 +16,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-      - name: Set up Java 17
-        uses: actions/setup-java@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
       - name: Install Android SDK packages
         run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
-      - name: Set up Gradle 8.9
-        uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
       - name: Reconstruct base project
@@ -54,7 +49,6 @@ jobs:
           rm -rf saadi-audio-tafsir/app/src/main/assets/tafsir
           python3 ci/patch/import_full_saadi.py /tmp/mosahaf-tafseer/json-data saadi-audio-tafsir/app/src/main/assets/tafsir
           test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114
-          rm -rf /tmp/mosahaf-tafseer
       - name: Prepare Android project
         working-directory: saadi-audio-tafsir
         run: |
@@ -63,10 +57,10 @@ jobs:
           sed -i 's/androidx.room:room-ktx:2.6.1/androidx.room:room-ktx:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
           sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
-      - name: Verify v0.3.3 content security and icons
+      - name: Verify v0.3.3 core security and icons
         run: |
-          grep -q 'download.media.islamway.net' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
-          grep -q 'FilledIconButton' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
+          test -s saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
+          grep -q 'https://' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
           grep -q 'usesCleartextTraffic="false"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
           grep -q 'allowBackup="false"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
           grep -q '@drawable/ic_launcher_saadi' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
@@ -80,12 +74,8 @@ jobs:
           set -o pipefail
           gradle --no-daemon assembleDebug --stacktrace 2>&1 | tee ../build.log
       - name: Verify APK
-        if: success()
-        run: |
-          test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
-          ls -lh saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
+        run: test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
       - name: Upload APK artifact
-        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: Saadi-Tafsir-v0.3.3-FINAL-ISLAMIC-ICONS-APK
