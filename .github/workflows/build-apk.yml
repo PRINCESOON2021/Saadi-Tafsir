@@ -49,6 +49,9 @@ jobs:
       - name: Apply v0.3.3 upgrade
         run: python3 ci/patch/v033_upgrade.py
 
+      - name: Apply professional Islamic icons
+        run: python3 ci/patch/v033_icons.py
+
       - name: Import complete Quran and Tafsir Al-Saadi
         run: |
           rm -rf /tmp/mosahaf-tafseer
@@ -70,12 +73,15 @@ jobs:
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
           sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
 
-      - name: Verify v0.3.3 content and security
+      - name: Verify v0.3.3 content security and icons
         run: |
           grep -q 'download.media.islamway.net' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
           grep -q 'FilledIconButton' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
           grep -q 'usesCleartextTraffic="false"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
           grep -q 'allowBackup="false"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
+          grep -q '@drawable/ic_launcher_saadi' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
+          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml
+          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_islamic_ornament.xml
           grep -q 'versionName = "0.3.3"' saadi-audio-tafsir/app/build.gradle.kts
           ! grep -R -q 'd1.islamhouse.com' saadi-audio-tafsir/app/src/main/java
 
@@ -95,7 +101,7 @@ jobs:
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.3.3-FULL-PLAYER-SECURE-APK
+          name: Saadi-Tafsir-v0.3.3-FINAL-ISLAMIC-ICONS-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
