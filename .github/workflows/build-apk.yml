@@ -77,13 +77,13 @@ jobs:
           grep -q 'saadi_audio_positions' "$AUDIO" || exit 22
           grep -q 'AudioClient.savePosition(context, "surah-$id")' "$UI" || exit 23
 
-          echo 'TEST 5/11 - GLOBAL Islamic palette'
-          grep -q 'SaadiLightColors = lightColorScheme' "$UI" || exit 24
-          grep -q 'primary = SaadiEmerald' "$UI" || exit 25
-          grep -q 'secondary = SaadiGold' "$UI" || exit 26
-          grep -q 'background = SaadiBackground' "$UI" || exit 27
-          grep -q 'surface = SaadiIvory' "$UI" || exit 28
-          grep -q 'MaterialTheme(colorScheme = SaadiLightColors)' "$UI" || exit 29
+          echo 'TEST 5/11 - component-level Islamic palette'
+          grep -q 'private val SaadiEmerald = Color(0xFF0E4D3A)' "$UI" || exit 24
+          grep -q 'private val SaadiGold = Color(0xFFD4AF37)' "$UI" || exit 25
+          grep -q 'private val SaadiIvory = Color(0xFFFFF8E7)' "$UI" || exit 26
+          grep -q 'private val SaadiBackground = Color(0xFFF4EEDF)' "$UI" || exit 27
+          ! grep -q 'SaadiGold = SaadiGold' "$UI" || exit 28
+          ! grep -q 'SaadiEmerald = SaadiEmerald' "$UI" || exit 29
 
           echo 'TEST 6/11 - redesigned Islamic player remains visible'
           grep -q 'RoundedCornerShape(22.dp)' "$UI" || exit 30
