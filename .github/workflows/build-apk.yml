@@ -85,3 +85,4 @@ jobs:
           git add ci/last_build.log
           git commit -m 'CI: save v0.3.4 failure [skip ci]' || true
           git push || true
+# fresh-run-trigger: 2026-08-23
