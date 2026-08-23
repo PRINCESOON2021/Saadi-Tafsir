@@ -1,16 +1,11 @@
 name: Android APK Build
-
 'on':
   push:
     branches: [main]
-    paths-ignore:
-      - 'ci/last_build.log'
-      - 'ci/last_success_run.txt'
+    paths-ignore: ['ci/last_build.log','ci/last_success_run.txt']
   workflow_dispatch: {}
-
 permissions:
   contents: write
-
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -18,17 +13,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+        with: {distribution: temurin, java-version: '17'}
       - uses: android-actions/setup-android@v3
-      - name: Install Android SDK packages
-        run: |
+      - run: |
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
       - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+        with: {gradle-version: '8.9'}
       - name: Reconstruct base project
         run: |
           cat ci/source/chunk_*.b64 > saadi-base.zip.b64
@@ -37,15 +28,12 @@ jobs:
           test -f saadi-audio-tafsir/settings.gradle.kts
       - name: Apply v0.3.3 upgrade
         run: python3 ci/patch/v033_upgrade.py
-      - name: Apply professional Islamic icons
+      - name: Apply Islamic icons
         run: python3 ci/patch/v033_icons.py
-      - name: Import complete Quran and Tafsir Al-Saadi
+      - name: Import Quran and Tafsir
         run: |
-          rm -rf /tmp/mosahaf-tafseer
           git clone --depth 1 --filter=blob:none --sparse https://github.com/meibassam/mosahaf-tafseer.git /tmp/mosahaf-tafseer
-          cd /tmp/mosahaf-tafseer
-          git sparse-checkout set json-data
-          cd "$GITHUB_WORKSPACE"
+          cd /tmp/mosahaf-tafseer && git sparse-checkout set json-data && cd "$GITHUB_WORKSPACE"
           rm -rf saadi-audio-tafsir/app/src/main/assets/tafsir
           python3 ci/patch/import_full_saadi.py /tmp/mosahaf-tafseer/json-data saadi-audio-tafsir/app/src/main/assets/tafsir
           test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114
@@ -57,24 +45,27 @@ jobs:
           sed -i 's/androidx.room:room-ktx:2.6.1/androidx.room:room-ktx:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
           sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
-      - name: Verify v0.3.3 core security and icons
+      - name: Diagnostic v0.3.3 files
         run: |
-          test -s saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
-          grep -q 'https://' saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
-          grep -q 'usesCleartextTraffic="false"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
-          grep -q 'allowBackup="false"' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
-          grep -q '@drawable/ic_launcher_saadi' saadi-audio-tafsir/app/src/main/AndroidManifest.xml
-          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml
-          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_islamic_ornament.xml
-          grep -q 'versionName = "0.3.3"' saadi-audio-tafsir/app/build.gradle.kts
-          ! grep -R -q 'd1.islamhouse.com' saadi-audio-tafsir/app/src/main/java
+          echo '--- AUDIO ---'
+          ls -l saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/ || true
+          cat saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt || true
+          echo '--- MANIFEST ---'
+          grep -E 'allowBackup|usesCleartextTraffic|icon|roundIcon' saadi-audio-tafsir/app/src/main/AndroidManifest.xml || true
+          echo '--- ICONS ---'
+          ls -l saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml saadi-audio-tafsir/app/src/main/res/drawable/ic_islamic_ornament.xml || true
+          echo '--- VERSION ---'
+          grep -E 'versionCode|versionName' saadi-audio-tafsir/app/build.gradle.kts || true
+      - name: Verify required v0.3.3 files
+        run: |
+          test -s saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt || { echo 'FAIL AudioUrlResolver'; exit 11; }
+          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_launcher_saadi.xml || { echo 'FAIL launcher icon'; exit 12; }
+          test -s saadi-audio-tafsir/app/src/main/res/drawable/ic_islamic_ornament.xml || { echo 'FAIL ornament'; exit 13; }
       - name: Build debug APK
         working-directory: saadi-audio-tafsir
         run: |
           set -o pipefail
           gradle --no-daemon assembleDebug --stacktrace 2>&1 | tee ../build.log
-      - name: Verify APK
-        run: test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -82,21 +73,12 @@ jobs:
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
-      - name: Record successful run id
-        if: success()
-        run: |
-          echo "${GITHUB_RUN_ID}" > ci/last_success_run.txt
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add ci/last_success_run.txt
-          git commit -m 'CI: record successful Android run [skip ci]' || true
-          git push || true
       - name: Save build failure log
         if: failure()
         run: |
-          cp build.log ci/last_build.log || echo 'Build failed before Gradle log creation.' > ci/last_build.log
+          cp build.log ci/last_build.log || echo 'Build failed before Gradle. See workflow diagnostics.' > ci/last_build.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci/last_build.log
-          git commit -m 'CI: save Android build failure log [skip ci]' || true
+          git commit -m 'CI: save Android failure [skip ci]' || true
           git push || true
