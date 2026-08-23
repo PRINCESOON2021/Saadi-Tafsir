@@ -1,4 +1,4 @@
-name: Android APK Build v0.3.8 SEARCH BLOCKS DESIGN
+name: Android APK Build v0.3.8 SEARCH FIX
 'on':
   push:
     branches: [main]
@@ -47,7 +47,7 @@ jobs:
         run: |
           UI=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
           echo '--- SEARCH STRUCTURE FOR NEXT PATCH ---'
-          grep -nEi 'search|بحث|query|ayah|آية|initialAyah|filtered' "$UI" | head -120 || true
+          grep -nEi 'search|بحث|query|ayah|آية|initialAyah|filtered' "$UI" | head -160 || true
       - name: Prepare Android project
         working-directory: saadi-audio-tafsir
         run: |
@@ -85,7 +85,7 @@ jobs:
       - name: Upload v0.3.8 core APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.3.8-SEARCH-BLOCKS-ZELLIJ-CORE-APK
+          name: Saadi-Tafsir-v0.3.8-SEARCH-FIX-ZELLIJ-CORE-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
