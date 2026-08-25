@@ -47,6 +47,8 @@ jobs:
           test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114
       - name: Add Arabic word and phrase ayah search list
         run: python3 ci/patch/v040_text_search_results.py
+      - name: Apply v0.5.0 real upgrade
+        run: python3 ci/patch/v050_real_upgrade.py
       - name: Prepare Android project
         working-directory: saadi-audio-tafsir
         run: |
@@ -55,11 +57,12 @@ jobs:
           sed -i 's/androidx.room:room-ktx:2.6.1/androidx.room:room-ktx:2.7.2/' app/build.gradle.kts
           sed -i 's/androidx.room:room-compiler:2.6.1/androidx.room:room-compiler:2.7.2/' app/build.gradle.kts
           sed -i '/buildFeatures { compose = true }/i\    compileOptions {\n        sourceCompatibility = JavaVersion.VERSION_17\n        targetCompatibility = JavaVersion.VERSION_17\n    }\n\n    kotlinOptions {\n        jvmTarget = "17"\n    }\n' app/build.gradle.kts
-      - name: v0.4.0 acceptance tests
+      - name: v0.5.0 acceptance tests
         run: |
           UI=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/ui/SaadiApp.kt
           INDEX=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/search/AyahTextIndex.kt
           SEARCH=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/search/AyahSearch.kt
+          BLOCKS=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/search/AudioAyahBlock.kt
           URLS=saadi-audio-tafsir/app/src/main/java/com/distritech/saaditafsir/player/AudioUrlResolver.kt
           grep -q 'AyahSearch.parseDirectRef(query)' "$UI" || exit 91
           grep -q 'AyahTextIndex.search(query.trim(), 50)' "$UI" || exit 92
@@ -67,12 +70,19 @@ jobs:
           grep -q 'onOpenSurah(hit.surah, hit.ayah)' "$UI" || exit 94
           grep -q 'كلمة أو عبارة من الآية' "$UI" || exit 95
           test -s "$INDEX" || exit 96
-          grep -q 'fun search(query: String, limit: Int = 50)' "$INDEX" || exit 97
-          grep -q 'normalizeArabic' "$SEARCH" || exit 98
-          grep -q 'd1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad' "$URLS" || exit 99
-          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114 || exit 100
-          grep -q 'versionName = "0.4.0"' saadi-audio-tafsir/app/build.gradle.kts || exit 101
-          echo 'V040 ARABIC TEXT SEARCH ACCEPTANCE PASSED'
+          grep -q 'normalizedText' "$INDEX" || exit 97
+          grep -q 'it.normalizedText.contains(q)' "$INDEX" || exit 98
+          grep -q 'normalizeArabic' "$SEARCH" || exit 99
+          test -s "$BLOCKS" || exit 100
+          grep -q 'endAyah - startAyah + 1 <= 5' "$BLOCKS" || exit 101
+          grep -q 'hasVerifiedTiming' "$BLOCKS" || exit 102
+          grep -q 'bg_zellij_saadi' "$UI" || exit 103
+          grep -q '۞ تفسير السعدي ۞' "$UI" || exit 104
+          grep -q 'مقاطع من 1 إلى 5 آيات' "$UI" || exit 105
+          grep -q 'd1.islamhouse.com/data/ar/ih_sounds/chain/Tafceer_Saadi_Al-Ahmad' "$URLS" || exit 106
+          test "$(find saadi-audio-tafsir/app/src/main/assets/tafsir -name '*.json' | wc -l)" -eq 114 || exit 107
+          grep -q 'versionName = "0.5.0"' saadi-audio-tafsir/app/build.gradle.kts || exit 108
+          echo 'V050 ACCEPTANCE PASSED'
       - name: Compile Android debug APK
         working-directory: saadi-audio-tafsir
         run: |
@@ -80,10 +90,10 @@ jobs:
           gradle --no-daemon clean assembleDebug --stacktrace 2>&1 | tee ../build.log
       - name: Verify APK
         run: test -s saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
-      - name: Upload v0.4.0 APK artifact
+      - name: Upload v0.5.0 APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Saadi-Tafsir-v0.4.0-ARABIC-TEXT-SEARCH-APK
+          name: Saadi-Tafsir-v0.5.0-FAST-SEARCH-ZELLIJ-AUDIO-BLOCKS-APK
           path: saadi-audio-tafsir/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 30
@@ -94,14 +104,14 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci/last_success_run.txt
-          git commit -m 'CI: record v0.4.0 success run [skip ci]' || true
+          git commit -m 'CI: record v0.5.0 success run [skip ci]' || true
           git push || true
       - name: Save build failure log
         if: failure()
         run: |
-          cp build.log ci/last_build.log || echo 'Failure before Gradle; inspect v0.4.0 acceptance tests.' > ci/last_build.log
+          cp build.log ci/last_build.log || echo 'Failure before Gradle; inspect v0.5.0 acceptance tests.' > ci/last_build.log
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add ci/last_build.log
-          git commit -m 'CI: save v0.4.0 failure [skip ci]' || true
+          git commit -m 'CI: save v0.5.0 failure [skip ci]' || true
           git push || true
